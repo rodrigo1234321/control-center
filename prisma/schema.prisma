@@ -16,9 +16,26 @@ model Project {
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+  goals       Goal[]
   tasks       Task[]
 
   @@index([isActive])
+}
+
+model Goal {
+  id          String   @id @default(uuid())
+  title       String
+  description String?
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  status      String   @default("ACTIVE")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  tasks       Task[]
+  agentMessages AgentMessage[]
+
+  @@index([projectId])
+  @@index([status])
 }
 
 model Task {
@@ -27,14 +44,21 @@ model Task {
   description      String?
   projectId        String
   project          Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  goalId           String?
+  goal             Goal?     @relation(fields: [goalId], references: [id], onDelete: SetNull)
   agent            String
   state            String    @default("BACKLOG")
   result           String?
   requiresApproval Boolean   @default(false)
+  nextAgent        String?
+  onFailureAgent   String?
+  retryCount       Int       @default(0)
+  handedOff        Boolean   @default(false)
   createdAt        DateTime  @default(now())
   finishedAt       DateTime?
   updatedAt        DateTime  @updatedAt
   approvals        Approval[]
+  agentMessages    AgentMessage[]
 
   @@index([projectId])
   @@index([state])
@@ -44,6 +68,7 @@ model Task {
 model ActivityLog {
   id        String   @id @default(uuid())
   taskId    String?
+  projectId String?
   agent     String
   action    String
   details   String?
@@ -51,6 +76,7 @@ model ActivityLog {
 
   @@index([timestamp])
   @@index([agent])
+  @@index([projectId])
 }
 
 model Approval {
@@ -66,4 +92,32 @@ model Approval {
 
   @@index([status])
   @@index([taskId])
+}
+
+model AgentMessage {
+  id        String    @id @default(uuid())
+  goalId    String?
+  goal      Goal?     @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  taskId    String?
+  task      Task?     @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  fromAgent String
+  toAgent   String
+  type      String    // REQUEST, HANDOFF, QUESTION, RESPONSE, REVIEW, FIX_REQUEST, INFO, ERROR, CONTROL, ACK
+  content   String
+  status    String    @default("UNREAD") // UNREAD, READ, RESOLVED
+  createdAt DateTime  @default(now())
+  readAt    DateTime?
+
+  @@index([toAgent, status])
+  @@index([goalId])
+  @@index([taskId])
+}
+
+model WorkerStatus {
+  id         String   @id @default(uuid())
+  agent      String   @unique
+  status     String   @default("OFFLINE")
+  lastSeenAt DateTime @default(now())
+
+  @@index([agent])
 }

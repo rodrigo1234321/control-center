@@ -1,22 +1,30 @@
 'use client';
 
 import { useTasks } from '@/lib/hooks/useTasks';
-import { ListTodo, Clock, PlayCircle, Eye, CheckCircle2, XCircle } from 'lucide-react';
+import { ListTodo, Clock, PlayCircle, Eye, CheckCircle2, XCircle, AlertCircle } from 'lucide-react';
 import { TaskState } from '@/lib/types';
 import { Task, Project } from '@/generated/prisma/client';
+import AgentControl from './AgentControl';
+import { useProjectContext } from '@/contexts/ProjectContext';
 
-const STATE_CONFIG: Record<TaskState, { icon: any, color: string, bg: string }> = {
-  BACKLOG: { icon: Clock, color: 'text-neutral-400', bg: 'bg-neutral-500/10' },
-  RUNNING: { icon: PlayCircle, color: 'text-blue-400', bg: 'bg-blue-500/10' },
-  REVIEW: { icon: Eye, color: 'text-amber-400', bg: 'bg-amber-500/10' },
-  DONE: { icon: CheckCircle2, color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
-  FAILED: { icon: XCircle, color: 'text-red-400', bg: 'bg-red-500/10' }
+import { STATE_COLORS } from '@/lib/types';
+
+const STATE_ICONS: Record<string, any> = {
+  BACKLOG: Clock,
+  RUNNING: PlayCircle,
+  REVIEW: Eye,
+  DONE: CheckCircle2,
+  FAILED: XCircle,
+  PAUSED: Clock,
+  BLOCKED: AlertCircle,
+  UNKNOWN: ListTodo
 };
 
 export function TasksTable() {
-  const { data: tasks, isLoading, error } = useTasks();
+  const { selectedProjectId } = useProjectContext();
+  const { data: tasks, isLoading, error } = useTasks({ projectId: selectedProjectId || undefined });
 
-  if (isLoading) return <div className="animate-pulse h-64 bg-neutral-900/50 rounded-xl border border-white/5"></div>;
+  if (isLoading) return <div className="animate-pulse h-full bg-neutral-900/50 rounded-xl border border-white/5 min-h-[300px]"></div>;
   if (error) return <div className="text-red-400">Failed to load tasks</div>;
 
   return (
@@ -40,16 +48,18 @@ export function TasksTable() {
               <th className="px-4 py-3 font-medium">Project</th>
               <th className="px-4 py-3 font-medium">Agent</th>
               <th className="px-4 py-3 font-medium">Result</th>
+              <th className="px-4 py-3 font-medium text-right">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-white/5">
             {(tasks as (Task & { project: Project })[])?.map((task) => {
-              const stateConf = STATE_CONFIG[task.state as TaskState];
-              const Icon = stateConf.icon;
+              const stateName = task.state || 'UNKNOWN';
+              const stateColors = STATE_COLORS[stateName] || STATE_COLORS['UNKNOWN'];
+              const Icon = STATE_ICONS[stateName] || STATE_ICONS['UNKNOWN'];
               return (
                 <tr key={task.id} className="hover:bg-white/[0.02] transition-colors">
                   <td className="px-4 py-3 whitespace-nowrap">
-                    <div className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium ${stateConf.bg} ${stateConf.color}`}>
+                    <div className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium ${stateColors.bg} ${stateColors.text}`}>
                       <Icon className="w-3.5 h-3.5" />
                       {task.state}
                     </div>
@@ -65,6 +75,15 @@ export function TasksTable() {
                   </td>
                   <td className="px-4 py-3 text-neutral-500 max-w-xs truncate">
                     {task.result || '-'}
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    <AgentControl 
+                      taskId={task.id} 
+                      currentState={task.state}
+                      agentName={task.agent}
+                      goalId={task.goalId}
+                      onUpdate={() => window.location.reload()} 
+                    />
                   </td>
                 </tr>
               );

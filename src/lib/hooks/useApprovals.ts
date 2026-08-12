@@ -1,10 +1,11 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
-export function useApprovals() {
+export function useApprovals(projectId?: string) {
   return useQuery({
-    queryKey: ['approvals'],
+    queryKey: ['approvals', projectId],
     queryFn: async () => {
-      const res = await fetch('/api/approvals');
+      const url = projectId ? `/api/approvals?projectId=${projectId}` : '/api/approvals';
+      const res = await fetch(url);
       if (!res.ok) throw new Error('Failed to fetch approvals');
       return res.json();
     },

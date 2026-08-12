@@ -3,6 +3,7 @@
 import { useActivity } from '@/lib/hooks/useActivity';
 import { Activity, Terminal, Bot, User } from 'lucide-react';
 import { ActivityLog } from '@/generated/prisma/client';
+import { useProjectContext } from '@/contexts/ProjectContext';
 
 function getAgentIcon(agent: string) {
   const lower = agent.toLowerCase();
@@ -14,7 +15,8 @@ function getAgentIcon(agent: string) {
 }
 
 export function ActivityFeed() {
-  const { data: activities, isLoading, error } = useActivity();
+  const { selectedProjectId } = useProjectContext();
+  const { data: activities, isLoading, error } = useActivity(50, selectedProjectId || undefined);
 
   if (isLoading) return <div className="animate-pulse h-64 bg-neutral-900/50 rounded-xl border border-white/5"></div>;
   if (error) return <div className="text-red-400">Failed to load activity</div>;

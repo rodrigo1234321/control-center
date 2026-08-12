@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { TASK_STATES, isValidTransition, type TaskState } from '@/lib/types';
+import { TASK_STATES, type TaskState } from '@/lib/types';
+import { transitionTask } from '@/lib/transition';
 
 /** GET /api/tasks/:id — Get task detail */
 export async function GET(
@@ -38,74 +39,14 @@ export async function PATCH(
     const body = await request.json();
     const { state, result } = body;
 
-    const existing = await prisma.task.findUnique({ where: { id } });
-    if (!existing) {
-      return NextResponse.json({ error: 'Task not found' }, { status: 404 });
-    }
-
-    const updateData: Record<string, unknown> = {};
-    if (result !== undefined) updateData.result = result;
-
-    if (state && TASK_STATES.includes(state as TaskState)) {
-      // Validate transition
-      if (!isValidTransition(existing.state as TaskState, state as TaskState)) {
-        return NextResponse.json(
-          { error: `Invalid transition: ${existing.state} → ${state}` },
-          { status: 422 }
-        );
-      }
-
-      // If task requires approval and is being marked DONE, redirect to REVIEW
-      if (state === 'DONE' && existing.requiresApproval && existing.state !== 'REVIEW') {
-        updateData.state = 'REVIEW';
-
-        // Auto-create an approval
-        await prisma.approval.create({
-          data: {
-            taskId: id,
-            actionType: 'DEPLOY',
-            description: `Approval required for: ${existing.title}`,
-          },
-        });
-
-        await prisma.activityLog.create({
-          data: {
-            taskId: id,
-            agent: existing.agent,
-            action: `Task moved to REVIEW (approval required): ${existing.title}`,
-          },
-        });
-      } else {
-        updateData.state = state;
-        if (state === 'DONE' || state === 'FAILED') {
-          updateData.finishedAt = new Date();
-        }
-      }
-    }
-
-    const updated = await prisma.task.update({
-      where: { id },
-      data: updateData,
-      include: {
-        project: { select: { name: true, slug: true } },
-        approvals: true,
-      },
-    });
-
-    // Log the state change
-    if (state) {
-      await prisma.activityLog.create({
-        data: {
-          taskId: id,
-          agent: existing.agent,
-          action: `Task ${existing.title}: ${existing.state} → ${updateData.state || state}`,
-        },
-      });
-    }
+    const updated = await transitionTask(id, state as TaskState, result);
 
     return NextResponse.json(updated);
-  } catch (error) {
+  } catch (error: any) {
     console.error('[PATCH /api/tasks/:id]', error);
+    if (error.message.includes('Invalid transition') || error.message.includes('not found')) {
+      return NextResponse.json({ error: error.message }, { status: 422 });
+    }
     return NextResponse.json({ error: 'Failed to update task' }, { status: 500 });
   }
 }

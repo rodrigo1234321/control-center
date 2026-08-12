@@ -1,11 +1,17 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
 /** GET /api/approvals — List pending approvals */
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const { searchParams } = new URL(request.url);
+    const projectId = searchParams.get('projectId');
+
+    const where: any = { status: 'PENDING' };
+    if (projectId) where.task = { projectId };
+
     const approvals = await prisma.approval.findMany({
-      where: { status: 'PENDING' },
+      where,
       include: {
         task: {
           include: {

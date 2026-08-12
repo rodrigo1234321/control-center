@@ -6,8 +6,25 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const limit = parseInt(searchParams.get('limit') || '50', 10);
+    const projectId = searchParams.get('projectId');
+
+    let where: any = {};
+    if (projectId) {
+      const projectTasks = await prisma.task.findMany({
+        where: { projectId },
+        select: { id: true },
+      });
+      const taskIds = projectTasks.map(t => t.id);
+      where = {
+        OR: [
+          { taskId: { in: taskIds } },
+          { projectId },
+        ],
+      };
+    }
 
     const entries = await prisma.activityLog.findMany({
+      where,
       take: Math.min(limit, 200),
       orderBy: { timestamp: 'desc' },
     });
@@ -23,7 +40,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { agent, action, taskId, details } = body;
+    const { agent, action, taskId, projectId, details } = body;
 
     if (!agent || !action) {
       return NextResponse.json(
@@ -33,7 +50,7 @@ export async function POST(request: NextRequest) {
     }
 
     const entry = await prisma.activityLog.create({
-      data: { agent, action, taskId, details },
+      data: { agent, action, taskId, projectId, details },
     });
 
     return NextResponse.json(entry, { status: 201 });

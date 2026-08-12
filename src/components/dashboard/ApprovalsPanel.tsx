@@ -5,9 +5,11 @@ import { useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, Check, X } from 'lucide-react';
 import { useState } from 'react';
 import { Approval, Task, Project } from '@/generated/prisma/client';
+import { useProjectContext } from '@/contexts/ProjectContext';
 
 export function ApprovalsPanel() {
-  const { data: approvals, isLoading, error } = useApprovals();
+  const { selectedProjectId } = useProjectContext();
+  const { data: approvals, isLoading, error } = useApprovals(selectedProjectId || undefined);
   const resolveMutation = useResolveApproval();
   const queryClient = useQueryClient();
   const [resolvingId, setResolvingId] = useState<string | null>(null);

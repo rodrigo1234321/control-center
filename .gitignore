@@ -46,3 +46,10 @@ next-env.d.ts
 
 # Prisma
 src/generated/prisma
+
+/test-fixtures/
+
+# Graphify & Repomix
+graphify-out/
+repomix-output.*
+
