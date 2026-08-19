@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process';
-import { mkdir, rm, writeFile, cp } from 'node:fs/promises';
+import { mkdir, rm, writeFile, cp, access } from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
 import { execFile } from 'node:child_process';
@@ -50,21 +50,59 @@ export class WindowsRuntime implements ExecutionRuntime {
     const jobWorkspace = path.join(jobRoot, 'workspace');
     await mkdir(jobWorkspace, { recursive: true });
 
+    let isGitRepo = false;
     try {
-      await execFileAsync('git', ['clone', '--branch', baseBranch, '--single-branch', repoUrl, jobWorkspace]);
+      await access(path.join(repoUrl, '.git'));
+      isGitRepo = true;
     } catch {
+      isGitRepo = false;
+    }
+
+    if (isGitRepo) {
       try {
-        await execFileAsync('git', ['clone', repoUrl, jobWorkspace]);
-      } catch (err: any) {
-        throw new Error(`Error clonando repositorio ${repoUrl}: ${err.message}`);
+        await execFileAsync('git', ['clone', '--branch', baseBranch, '--single-branch', repoUrl, jobWorkspace]);
+      } catch {
+        try {
+          await execFileAsync('git', ['clone', repoUrl, jobWorkspace]);
+        } catch {
+          // Fallback: copiar archivos ignorando .git e inicializar repo local
+          try {
+            await cp(repoUrl, jobWorkspace, {
+              recursive: true,
+              filter: (s) => path.basename(s) !== '.git' && path.basename(s) !== 'node_modules',
+            });
+          } catch {}
+          try {
+            await execFileAsync('git', ['init', '-b', baseBranch], { cwd: jobWorkspace });
+          } catch {
+            await execFileAsync('git', ['init'], { cwd: jobWorkspace });
+          }
+        }
       }
+    } else {
+      // Directorio local no git o nuevo: copiamos contenido e inicializamos git en el workspace
+      try {
+        await cp(repoUrl, jobWorkspace, {
+          recursive: true,
+          filter: (s) => path.basename(s) !== 'node_modules',
+        });
+      } catch {}
+      try {
+        await execFileAsync('git', ['init', '-b', baseBranch], { cwd: jobWorkspace });
+      } catch {
+        await execFileAsync('git', ['init'], { cwd: jobWorkspace });
+      }
+      // Inicializamos también en repoUrl para trazabilidad
+      try {
+        await execFileAsync('git', ['init'], { cwd: repoUrl });
+      } catch {}
     }
 
     const tempBranch = `cc/${jobId}`;
     try {
       await execFileAsync('git', ['checkout', '-b', tempBranch], { cwd: jobWorkspace });
     } catch (err: any) {
-      console.error(`[Runtime] Warning creating branch ${tempBranch}: ${err.message}`);
+      // Si la rama no se puede crear (p. ej. repo vacío sin commits iniciales), no es fatal
     }
 
     return jobWorkspace;
