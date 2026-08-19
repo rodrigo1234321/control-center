@@ -231,6 +231,22 @@ async function runProductionReadinessTests() {
     }
   });
 
+  // Limpieza de datos de prueba para mantener limpio el Mission Control en vivo
+  try {
+    const testProjects = await prisma.project.findMany({
+      where: { slug: { startsWith: 'prt-' } },
+      select: { id: true },
+    });
+    const projectIds = testProjects.map((p) => p.id);
+    if (projectIds.length > 0) {
+      await prisma.approval.deleteMany({ where: { task: { projectId: { in: projectIds } } } });
+      await prisma.activityLog.deleteMany({ where: { projectId: { in: projectIds } } });
+      await prisma.task.deleteMany({ where: { projectId: { in: projectIds } } });
+      await prisma.project.deleteMany({ where: { id: { in: projectIds } } });
+    }
+    await prisma.task.deleteMany({ where: { title: 'Audited Task Test' } });
+  } catch {}
+
   console.log('\n======================================================');
   console.log(`   RESULTS: ${passed}/${total} PRODUCTION READINESS TESTS PASSED   `);
   console.log('======================================================\n');

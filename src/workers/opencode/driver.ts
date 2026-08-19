@@ -2,10 +2,9 @@ import 'dotenv/config';
 import { spawn } from 'node:child_process';
 import path from 'node:path';
 import os from 'node:os';
-import { mkdir } from 'node:fs/promises';
+import { mkdir, readdir } from 'node:fs/promises';
 import { prisma } from '../../lib/prisma';
 import { transitionTask } from '../../lib/transition';
-import { processHandoffs } from '../../lib/handoff';
 import { EnvironmentValidator } from '../../lib/env-validator';
 
 const AGENT_NAME = 'OpenCode';
@@ -56,7 +55,6 @@ async function executeOpenCode(cwd: string, prompt: string): Promise<{ exitCode:
 
     const args = ['run', prompt, '--model', model];
 
-    // Invocamos el binario opencode.exe directamente sin shell
     const child = spawn(bin, args, {
       cwd,
       env,
@@ -128,7 +126,7 @@ async function processNextTask() {
     `JobID: ${jobId}`,
     `Descripción: ${task.description ?? 'Construir o modificar los archivos requeridos según los requerimientos del proyecto.'}`,
     `Directorio de trabajo: ${repoPath}`,
-    `Ejecutá los cambios necesarios en el código, asegurando calidad y sintaxis limpia.`,
+    `Completá la tarea paso a paso implementando los archivos necesarios. Asegurate de que el código quede completo y funcional.`,
   ].join('\n');
 
   try {
@@ -144,7 +142,7 @@ async function processNextTask() {
     });
 
     if (exitCode === 0 || exitCode === null) {
-      const summary = `OpenCode ejecutó la tarea ${task.title}. ${stdout.slice(-300).trim()}`;
+      const summary = `OpenCode completó la tarea ${task.title}. ${stdout.slice(-300).trim()}`;
       await transitionTask(task.id, 'DONE', summary);
       await logActivity(task.id, task.projectId, 'COMPLETED_TASK', summary);
     } else {

@@ -70,23 +70,25 @@ async function main() {
   const task3 = await prisma.task.create({
     data: {
       title: 'Development',
-      description: 'Implement frontend and backend',
+      description: 'Implement frontend and backend: FastAPI backend endpoints + modern landing page',
       projectId: project.id,
       goalId: goal.id,
       agent: 'OpenCode',
-      state: 'BLOCKED',
-      nextAgent: 'OpenHands',
+      state: 'BACKLOG',
+      nextAgent: 'Antigravity',
+      onFailureAgent: 'OpenCode',
     },
   });
 
   await prisma.task.create({
     data: {
-      title: 'QA',
-      description: 'End-to-end testing',
+      title: 'QA Verification',
+      description: 'End-to-end testing and quality audit',
       projectId: project.id,
       goalId: goal.id,
-      agent: 'OpenHands',
+      agent: 'Antigravity',
       state: 'BACKLOG',
+      onFailureAgent: 'OpenCode',
     },
   });
 
