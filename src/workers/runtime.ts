@@ -65,13 +65,6 @@ export class WindowsRuntime implements ExecutionRuntime {
         try {
           await execFileAsync('git', ['clone', repoUrl, jobWorkspace]);
         } catch {
-          // Fallback: copiar archivos ignorando .git e inicializar repo local
-          try {
-            await cp(repoUrl, jobWorkspace, {
-              recursive: true,
-              filter: (s) => path.basename(s) !== '.git' && path.basename(s) !== 'node_modules',
-            });
-          } catch {}
           try {
             await execFileAsync('git', ['init', '-b', baseBranch], { cwd: jobWorkspace });
           } catch {
@@ -79,6 +72,13 @@ export class WindowsRuntime implements ExecutionRuntime {
           }
         }
       }
+      // Sincronizar cualquier archivo local del working tree (incluyendo los generados por agentes anteriores)
+      try {
+        await cp(repoUrl, jobWorkspace, {
+          recursive: true,
+          filter: (s) => path.basename(s) !== '.git' && path.basename(s) !== 'node_modules',
+        });
+      } catch {}
     } else {
       // Directorio local no git o nuevo: copiamos contenido e inicializamos git en el workspace
       try {
@@ -102,7 +102,7 @@ export class WindowsRuntime implements ExecutionRuntime {
     try {
       await execFileAsync('git', ['checkout', '-b', tempBranch], { cwd: jobWorkspace });
     } catch (err: any) {
-      // Si la rama no se puede crear (p. ej. repo vacío sin commits iniciales), no es fatal
+      // Si la rama no se puede crear, no es fatal
     }
 
     return jobWorkspace;
