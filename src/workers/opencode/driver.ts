@@ -71,7 +71,7 @@ async function executeOpenCode(cwd: string, prompt: string): Promise<{ exitCode:
       OPENCODE_DISABLE_AUTOUPDATE: '1',
     };
 
-    const args = ['run', prompt, '--model', model];
+    const args = ['run', prompt, '--model', model, '--auto'];
 
     const child = spawn(bin, args, {
       cwd,
