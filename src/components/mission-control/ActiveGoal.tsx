@@ -22,9 +22,9 @@ export function ActiveGoal() {
   const totalTasks = tasks.length;
   const progress = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
   
-  const blockedTasks = tasks.filter(t => t.state === 'BLOCKED');
+  const blockedTasks = tasks.filter(t => t.state === 'BLOCKED' && !t.handedOff);
   const runningTasks = tasks.filter(t => t.state === 'RUNNING');
-  const failedTasks = tasks.filter(t => t.state === 'FAILED');
+  const failedTasks = tasks.filter(t => t.state === 'FAILED' && !t.handedOff);
 
   const isBlocked = blockedTasks.length > 0;
   const isFailed = failedTasks.length > 0;

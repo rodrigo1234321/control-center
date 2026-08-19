@@ -88,6 +88,10 @@ export async function transitionTask(
         updateData.finishedAt = new Date();
       }
     }
+
+    if (!isValidTransition(existing.state as TaskState, finalState as TaskState)) {
+      throw new Error(`Invalid transition: ${existing.state} → ${finalState}`);
+    }
     updateData.state = finalState;
   }
 

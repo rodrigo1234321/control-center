@@ -12,6 +12,16 @@ export async function createJobWorkspace(
 }
 
 /**
+ * Aplica los cambios producidos en el workspace aislado de vuelta sobre el repositorio real.
+ */
+export async function applyJobWorkspaceChanges(
+  jobId: string,
+  targetRepoPath: string
+): Promise<boolean> {
+  return defaultRuntime.applyWorkspaceChanges(jobId, targetRepoPath);
+}
+
+/**
  * Archiva la evidencia de ejecución (metadata, RESULT.json, logs, patches) antes de la limpieza.
  */
 export async function archiveJobEvidence(

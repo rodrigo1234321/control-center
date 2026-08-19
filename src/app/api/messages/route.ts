@@ -33,24 +33,20 @@ export async function GET(req: NextRequest) {
   }
 }
 
+import { CreateMessageSchema } from '@/lib/schemas';
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { fromAgent, toAgent, goalId, taskId, type, content } = body;
-
-    if (!fromAgent || !toAgent || !type || !content) {
+    const parsed = CreateMessageSchema.safeParse(body);
+    if (!parsed.success) {
       return NextResponse.json(
-        { error: 'fromAgent, toAgent, type, and content are required' }, 
+        { error: 'Validación fallida', details: parsed.error.format() },
         { status: 400 }
       );
     }
 
-    if (!MESSAGE_TYPES.includes(type)) {
-      return NextResponse.json(
-        { error: `Invalid type. Must be one of: ${MESSAGE_TYPES.join(', ')}` },
-        { status: 400 }
-      );
-    }
+    const { fromAgent, toAgent, goalId, taskId, type, content } = parsed.data;
 
     const message = await prisma.agentMessage.create({
       data: {

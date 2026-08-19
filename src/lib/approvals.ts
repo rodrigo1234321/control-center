@@ -79,18 +79,15 @@ export async function resolveApproval(
         where: { id: existing.taskId },
         data: { handedOff: true },
       });
+      if (existing.task.goalId) {
+        await processHandoffs(existing.taskId, tx);
+      }
     } else {
       await transitionTask(existing.taskId, newTaskState, resultNote, tx);
     }
 
     return updatedApproval;
   });
-
-  // F9: Re-evaluar el goal después de resolver la aprobación.
-  // Si era el último bloqueo, el goal puede pasar a COMPLETED o FAILED.
-  if (existing.task.goalId) {
-    await processHandoffs(existing.taskId, client);
-  }
 
   return { approval, action: isApproved ? 'APPROVED' : 'REJECTED' };
 }

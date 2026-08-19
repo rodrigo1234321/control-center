@@ -17,13 +17,15 @@ export function Sidebar() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
+      case 'ONLINE': return 'bg-emerald-500';
+      case 'BUSY':
       case 'BUILDING':
-      case 'RUNNING': return 'bg-status-building';
-      case 'QA': return 'bg-status-qa';
-      case 'WAITING': return 'bg-status-waiting';
-      case 'OFFLINE': return 'bg-status-offline';
-      case 'FAILED': return 'bg-status-failed';
-      case 'DONE': return 'bg-status-success';
+      case 'RUNNING': return 'bg-blue-500 animate-pulse';
+      case 'QA': return 'bg-purple-500';
+      case 'WAITING': return 'bg-amber-500';
+      case 'OFFLINE': return 'bg-zinc-600';
+      case 'FAILED': return 'bg-red-500';
+      case 'DONE': return 'bg-emerald-500';
       default: return 'bg-zinc-500';
     }
   };

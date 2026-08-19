@@ -39,14 +39,21 @@ export async function GET(req: NextRequest) {
   }
 }
 
+import { CreateGoalSchema } from '@/lib/schemas';
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { title, description, projectId, agent } = body;
-
-    if (!title || !projectId) {
-      return NextResponse.json({ error: 'Title and projectId are required' }, { status: 400 });
+    const parsed = CreateGoalSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: 'Validación fallida', details: parsed.error.format() },
+        { status: 400 }
+      );
     }
+
+    const { title, description, projectId } = parsed.data;
+    const agent = body.agent;
 
     const goal = await prisma.goal.create({
       data: {

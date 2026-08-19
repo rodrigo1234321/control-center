@@ -14,7 +14,7 @@ export function LiveActivity() {
   useEffect(() => {
     if (autoScroll && containerRef.current) {
       containerRef.current.scrollTo({
-        top: containerRef.current.scrollHeight,
+        top: 0,
         behavior: 'smooth',
       });
     }

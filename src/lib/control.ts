@@ -1,10 +1,8 @@
 /**
  * Centralized CONTROL protocol for worker orchestration.
  *
- * Workers (e.g. scripts/dummy-worker.ts) parse these exact prefixes when
- * handling messages of type CONTROL. UI components must use these helpers
- * instead of sending bare state names like "PAUSED" or "FAILED" — those are
- * execution results, not control orders.
+ * Workers parse these exact prefixes when handling messages of type CONTROL.
+ * UI components must use these helpers instead of sending bare state names.
  */
 export const CONTROL_COMMANDS = {
   STOP: 'STOP',
@@ -24,8 +22,11 @@ export function parseControlCommand(
       return { command: key, taskId };
     }
   }
-  if (content.startsWith(CONTROL_COMMANDS.STOP)) {
+  if (content === CONTROL_COMMANDS.STOP || content === 'STOP_ALL') {
     return { command: 'STOP' };
+  }
+  if (content === 'PAUSE' || content === 'PAUSE_ALL') {
+    return { command: 'PAUSE_TASK' };
   }
   throw new Error(`Unknown CONTROL command: ${content}`);
 }

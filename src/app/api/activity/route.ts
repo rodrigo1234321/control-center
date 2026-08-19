@@ -6,7 +6,8 @@ import type { Prisma } from '@/generated/prisma/client';
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const limit = parseInt(searchParams.get('limit') || '50', 10);
+    const rawLimit = parseInt(searchParams.get('limit') || '50', 10);
+    const limit = Number.isNaN(rawLimit) ? 50 : Math.max(1, Math.min(rawLimit, 200));
     const projectId = searchParams.get('projectId');
 
     let where: Prisma.ActivityLogWhereInput = {};

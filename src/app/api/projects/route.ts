@@ -20,15 +20,21 @@ export async function GET() {
   }
 }
 
+import { CreateProjectSchema } from '@/lib/schemas';
+
 /** POST /api/projects — Create a new project */
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { name, slug, description, repoPath } = body;
-
-    if (!name || !slug) {
-      return NextResponse.json({ error: 'name and slug are required' }, { status: 400 });
+    const parsed = CreateProjectSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: 'Validación fallida', details: parsed.error.format() },
+        { status: 400 }
+      );
     }
+
+    const { name, slug, description, repoPath } = parsed.data;
 
     const project = await prisma.project.create({
       data: { name, slug, description, repoPath },

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import type { TaskState } from '@/lib/types';
+import { TASK_STATES, type TaskState } from '@/lib/types';
 import { transitionTask } from '@/lib/transition';
 
 /** GET /api/tasks/:id — Get task detail */
@@ -38,6 +38,13 @@ export async function PATCH(
     const { id } = await params;
     const body = await request.json();
     const { state, result } = body;
+
+    if (state !== undefined && !TASK_STATES.includes(state)) {
+      return NextResponse.json(
+        { error: `Invalid task state '${state}'. Valid states are: ${TASK_STATES.join(', ')}` },
+        { status: 400 }
+      );
+    }
 
     const updated = await transitionTask(id, state as TaskState, result);
 

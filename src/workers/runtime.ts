@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process';
-import { mkdir, rm, writeFile, readFile } from 'node:fs/promises';
+import { mkdir, rm, writeFile, cp } from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
 import { execFile } from 'node:child_process';
@@ -32,6 +32,7 @@ export interface ExecutionEvidence {
 
 export interface ExecutionRuntime {
   createWorkspace(jobId: string, repoUrl: string, baseBranch?: string): Promise<string>;
+  applyWorkspaceChanges(jobId: string, targetRepoPath: string): Promise<boolean>;
   archiveEvidence(jobId: string, evidence: ExecutionEvidence): Promise<string>;
   destroyWorkspace(jobId: string): Promise<void>;
   execute(opts: RuntimeOpts): Promise<RuntimeResult>;
@@ -62,9 +63,32 @@ export class WindowsRuntime implements ExecutionRuntime {
     const tempBranch = `cc/${jobId}`;
     try {
       await execFileAsync('git', ['checkout', '-b', tempBranch], { cwd: jobWorkspace });
-    } catch {}
+    } catch (err: any) {
+      console.error(`[Runtime] Warning creating branch ${tempBranch}: ${err.message}`);
+    }
 
     return jobWorkspace;
+  }
+
+  /**
+   * Aplica los cambios realizados en el workspace aislado de vuelta al repositorio real (targetRepoPath).
+   * Sincroniza archivos creados/modificados respetando el .git del repo destino.
+   */
+  async applyWorkspaceChanges(jobId: string, targetRepoPath: string): Promise<boolean> {
+    const jobWorkspace = path.join(this.runtimeRoot, jobId, 'workspace');
+    try {
+      await cp(jobWorkspace, targetRepoPath, {
+        recursive: true,
+        filter: (source) => {
+          const basename = path.basename(source);
+          return basename !== '.git' && basename !== 'node_modules';
+        },
+      });
+      return true;
+    } catch (err: any) {
+      console.error(`[Runtime] Error aplicando cambios a ${targetRepoPath}:`, err.message);
+      return false;
+    }
   }
 
   /**
@@ -127,7 +151,7 @@ export class WindowsRuntime implements ExecutionRuntime {
         } catch {
           child.kill();
         }
-      }, opts.timeoutMs + 5_000);
+      }, opts.timeoutMs);
 
       child.stdout?.on('data', (d) => { stdout += d.toString(); });
       child.stderr?.on('data', (d) => { stderr += d.toString(); });

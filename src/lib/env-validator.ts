@@ -1,8 +1,10 @@
+import os from 'node:os';
+import path from 'node:path';
+
 /**
  * EnvironmentValidator: Validador de configuración y variables de entorno críticas.
  * Falla rápido y con mensajes explícitos antes de iniciar cualquier worker o servidor.
  */
-
 export class EnvironmentValidator {
   static requireEnv(name: string, context = 'System'): string {
     const value = process.env[name];
@@ -22,11 +24,17 @@ export class EnvironmentValidator {
     let opencodeBin: string | undefined;
 
     if (agent === 'Antigravity') {
-      agyExecutable = process.env.AGY_EXECUTABLE ?? 'C:\\Users\\rodri\\AppData\\Local\\agy\\bin\\agy.exe';
+      const defaultAgy = process.platform === 'win32'
+        ? path.join(os.homedir(), 'AppData', 'Local', 'agy', 'bin', 'agy.exe')
+        : 'agy';
+      agyExecutable = process.env.AGY_EXECUTABLE ?? defaultAgy;
     }
 
     if (agent === 'OpenCode') {
-      opencodeBin = process.env.OPENCODE_BIN ?? (process.platform === 'win32' ? 'opencode.cmd' : 'opencode');
+      const defaultOpencode = process.platform === 'win32'
+        ? path.join(os.homedir(), 'AppData', 'Roaming', 'npm', 'node_modules', 'opencode-ai', 'bin', 'opencode.exe')
+        : 'opencode';
+      opencodeBin = process.env.OPENCODE_BIN ?? defaultOpencode;
     }
 
     return { databaseUrl, agyExecutable, opencodeBin };

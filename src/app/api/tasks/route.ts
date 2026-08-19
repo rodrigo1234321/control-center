@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { TASK_STATES, type TaskState } from '@/lib/types';
 
+import { CreateTaskSchema } from '@/lib/schemas';
+
 /** GET /api/tasks — List tasks with optional filters */
 export async function GET(request: NextRequest) {
   try {
@@ -35,22 +37,28 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { title, description, projectId, agent, requiresApproval, notify } = body;
-
-    if (!title || !projectId || !agent) {
+    const parsed = CreateTaskSchema.safeParse(body);
+    if (!parsed.success) {
       return NextResponse.json(
-        { error: 'title, projectId, and agent are required' },
+        { error: 'Validación fallida', details: parsed.error.format() },
         { status: 400 }
       );
     }
+
+    const { title, description, projectId, goalId, agent, state, requiresApproval, nextAgent, onFailureAgent } = parsed.data;
+    const notify = body.notify ?? false;
 
     const task = await prisma.task.create({
       data: {
         title,
         description,
         projectId,
+        goalId,
         agent,
+        state: state ?? 'BACKLOG',
         requiresApproval: requiresApproval ?? false,
+        nextAgent,
+        onFailureAgent,
       },
       include: {
         project: { select: { name: true, slug: true } },

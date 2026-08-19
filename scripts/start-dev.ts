@@ -2,6 +2,7 @@ import 'dotenv/config';
 import { spawn, type ChildProcess } from 'node:child_process';
 import path from 'node:path';
 import { EnvironmentValidator } from '../src/lib/env-validator';
+import { reapStaleRunningTasks } from '../src/lib/watchdog';
 
 // Validación temprana de variables críticas antes de spawnear
 EnvironmentValidator.validateDatabase('Supervisor');
@@ -55,8 +56,18 @@ function startProcess(proc: ManagedProcess) {
   });
 }
 
+// Watchdog activo en segundo plano para liberar tareas RUNNING huérfanas (#9)
+const watchdogInterval = setInterval(async () => {
+  try {
+    await reapStaleRunningTasks();
+  } catch (err: any) {
+    console.error('[SUPERVISOR Watchdog Error]:', err.message);
+  }
+}, 60_000);
+
 function killAll() {
   console.log('\n[SUPERVISOR] Apagando todos los servicios...');
+  clearInterval(watchdogInterval);
   for (const proc of processes) {
     if (proc.child && proc.child.pid) {
       try {

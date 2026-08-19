@@ -28,13 +28,13 @@ const AUTH_PATTERNS = [
   /invalid_api_key/i,
   /unauthorized/i,
   /forbidden/i,
-  /401/i,
-  /403/i,
+  /\b401\b/i,
+  /\b403\b/i,
   /cloudaicompanion\.instances/i,
 ];
 
 const QUOTA_PATTERNS = [
-  /429/i,
+  /\b429\b/i,
   /rate_limit/i,
   /quota exceeded/i,
   /resource_exhausted/i,
@@ -47,10 +47,10 @@ const TRANSIENT_PATTERNS = [
   /timed out/i,
   /econnreset/i,
   /etimedout/i,
-  /500/i,
-  /502/i,
-  /503/i,
-  /504/i,
+  /\b500\b/i,
+  /\b502\b/i,
+  /\b503\b/i,
+  /\b504\b/i,
   /socket hang up/i,
   /network error/i,
 ];

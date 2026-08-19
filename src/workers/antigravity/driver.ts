@@ -1,12 +1,11 @@
 import 'dotenv/config';
-import { writeFile, mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
+import { mkdir, writeFile } from 'node:fs/promises';
 import { prisma } from '../../lib/prisma';
-import { runAntigravityWithCircuitBreaker } from './index';
-import { createJobWorkspace, destroyJobWorkspace, archiveJobEvidence } from './workspace-manager';
 import { transitionTask } from '../../lib/transition';
-import { processHandoffs } from '../../lib/handoff';
+import { runAntigravityWithCircuitBreaker } from './index';
+import { createJobWorkspace, destroyJobWorkspace, archiveJobEvidence, applyJobWorkspaceChanges } from './workspace-manager';
 import { EnvironmentValidator } from '../../lib/env-validator';
 
 const AGENT_NAME = 'Antigravity';
@@ -34,8 +33,26 @@ async function logActivity(taskId: string, projectId: string, action: string, de
   } catch {}
 }
 
+async function checkControlMessage(taskId: string): Promise<'PAUSE' | 'STOP' | null> {
+  try {
+    const msg = await prisma.agentMessage.findFirst({
+      where: {
+        taskId,
+        type: 'CONTROL',
+        content: { in: [`STOP_TASK:${taskId}`, `PAUSE_TASK:${taskId}`, 'STOP_ALL', 'PAUSE_ALL'] },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (!msg) return null;
+    if (msg.content.startsWith('PAUSE')) return 'PAUSE';
+    return 'STOP';
+  } catch {
+    return null;
+  }
+}
+
 async function processNextTask() {
-  const task = await prisma.task.findFirst({
+  const candidate = await prisma.task.findFirst({
     where: {
       agent: AGENT_NAME,
       state: 'BACKLOG',
@@ -44,16 +61,15 @@ async function processNextTask() {
     orderBy: { createdAt: 'asc' },
   });
 
-  if (!task) return;
+  if (!candidate) return;
 
-  const jobId = `job-${task.id.slice(0, 8)}-${Date.now()}`;
-  console.log(`[${AGENT_NAME}] Reclamando tarea: ${task.title} (TaskID: ${task.id}, JobID: ${jobId})`);
-  await updateHeartbeat('BUSY');
+  const jobId = `job-${candidate.id.slice(0, 8)}-${Date.now()}`;
 
-  // Actualizar metadata de inicio de ejecución en la tarea
-  await prisma.task.update({
-    where: { id: task.id },
+  // Reclamo atómico para evitar race conditions / doble ejecución (#5)
+  const claim = await prisma.task.updateMany({
+    where: { id: candidate.id, state: 'BACKLOG' },
     data: {
+      state: 'RUNNING',
       jobId,
       workerId: WORKER_ID,
       lastStartedAt: new Date(),
@@ -61,8 +77,26 @@ async function processNextTask() {
     },
   });
 
-  await transitionTask(task.id, 'RUNNING');
+  if (claim.count === 0) return;
+
+  const task = await prisma.task.findUnique({
+    where: { id: candidate.id },
+    include: { project: true, goal: true },
+  });
+  if (!task || !task.project) return;
+
+  console.log(`[${AGENT_NAME}] Reclamando tarea: ${task.title} (TaskID: ${task.id}, JobID: ${jobId})`);
+  await updateHeartbeat('BUSY');
   await logActivity(task.id, task.projectId, 'CLAIMED_TASK', `Iniciando trabajo en ${task.title} (Worker: ${WORKER_ID})`);
+
+  // Chequeo de comandos de control (#10)
+  const ctrl = await checkControlMessage(task.id);
+  if (ctrl) {
+    const targetState = ctrl === 'PAUSE' ? 'PAUSED' : 'FAILED';
+    await transitionTask(task.id, targetState, `Detenido por comando ${ctrl}`);
+    await logActivity(task.id, task.projectId, `TASK_${ctrl}ED`, `Comando ${ctrl} recibido`);
+    return;
+  }
 
   const repoPath = task.project.repoPath || path.join(process.cwd(), 'temp-repos', task.project.slug);
   await mkdir(repoPath, { recursive: true });
@@ -70,12 +104,15 @@ async function processNextTask() {
   let workspacePath = repoPath;
   let isIsolatedWorkspace = false;
 
+  // Manejo explícito y seguro del aislamiento (#6)
   try {
     workspacePath = await createJobWorkspace(jobId, repoPath, 'main');
     isIsolatedWorkspace = true;
-  } catch {
-    workspacePath = repoPath;
-    await mkdir(workspacePath, { recursive: true });
+  } catch (err: any) {
+    console.error(`[${AGENT_NAME}] Error creando workspace aislado para ${jobId}:`, err.message);
+    await logActivity(task.id, task.projectId, 'WORKSPACE_ERROR', `Fallo de aislamiento: ${err.message}`);
+    await transitionTask(task.id, 'FAILED', `No se pudo inicializar workspace aislado: ${err.message}`);
+    return;
   }
 
   const isPlanning = task.title.toLowerCase().includes('plan') || task.title.toLowerCase().includes('research');
@@ -137,6 +174,11 @@ async function processNextTask() {
     });
 
     if (result.status === 'COMPLETED') {
+      // Aplicar cambios generados en el workspace aislado de vuelta al repo real (#1)
+      if (isIsolatedWorkspace) {
+        await applyJobWorkspaceChanges(jobId, repoPath);
+      }
+
       const summaryText = typeof result.resultFileContent === 'object' && result.resultFileContent !== null
         ? JSON.stringify(result.resultFileContent)
         : `Tarea completada exitosamente. Diff: ${result.gitDiffSummary ?? 'archivos modificados'}`;

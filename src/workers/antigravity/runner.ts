@@ -87,6 +87,15 @@ async function executeJob(input: AntigravityJobInput): Promise<AntigravityJobRes
     failureReason = `Faltan uno o más de los archivos esperados (${(input.expectedFiles ?? []).join(', ')}).`;
   }
 
+  // Validación explícita del campo status en RESULT.json (#3)
+  if (!failureReason && validation.resultFilePresent && typeof validation.resultFileContent === 'object' && validation.resultFileContent !== null) {
+    const resObj = validation.resultFileContent as Record<string, unknown>;
+    const statusVal = String(resObj.status ?? '').toLowerCase();
+    if (statusVal === 'error' || statusVal === 'failed') {
+      failureReason = typeof resObj.summary === 'string' ? resObj.summary : 'El agente reportó explícitamente fallo en RESULT.json';
+    }
+  }
+
   const finishedAt = new Date().toISOString();
 
   if (failureReason) {

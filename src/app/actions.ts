@@ -27,8 +27,10 @@ export async function getMissionControlState() {
 
   const workerStatuses = await prisma.workerStatus.findMany();
   
-  const agents = ['Antigravity', 'OpenDesign', 'OpenCode', 'OpenHands'];
-  const agentStatus = agents.map(agent => {
+  const knownAgents = ['Antigravity', 'OpenDesign', 'OpenCode', 'OpenHands'];
+  const allAgentNames = Array.from(new Set([...knownAgents, ...workerStatuses.map(w => w.agent)]));
+  
+  const agentStatus = allAgentNames.map(agent => {
     const status = workerStatuses.find(w => w.agent === agent);
     const isOnline = status && (new Date().getTime() - status.lastSeenAt.getTime() < 30000);
     return {

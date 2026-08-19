@@ -27,7 +27,7 @@ export type MessageType = (typeof MESSAGE_TYPES)[number];
 
 /** Valid state transitions (resiliente y robusta ante reinicios y errores tempranos) */
 export const VALID_TRANSITIONS: Record<TaskState, TaskState[]> = {
-  BACKLOG: ['RUNNING', 'DONE', 'FAILED', 'PAUSED', 'BLOCKED'],
+  BACKLOG: ['RUNNING', 'DONE', 'FAILED', 'PAUSED', 'BLOCKED', 'REVIEW'],
   RUNNING: ['REVIEW', 'DONE', 'FAILED', 'PAUSED', 'BLOCKED', 'BACKLOG'],
   REVIEW: ['DONE', 'FAILED', 'BACKLOG'],
   DONE: ['BACKLOG'], // Permitido para replanificación o reinicio manual
