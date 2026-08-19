@@ -1,0 +1,11 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "model": "opencode/deepseek-v4-flash-free",
+  "mcp": {
+    "control-center": {
+      "type": "local",
+      "command": ["node", "node_modules/tsx/dist/cli.mjs", "src/mcp/server.ts", "--agent", "OpenCode"],
+      "enabled": true
+    }
+  }
+}

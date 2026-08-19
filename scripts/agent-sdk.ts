@@ -1,7 +1,8 @@
 import 'dotenv/config';
 import { parseArgs } from 'node:util';
 import { prisma } from '@/lib/prisma';
-import { MESSAGE_TYPES } from '@/lib/types';
+import { MESSAGE_TYPES, type TaskState } from '@/lib/types';
+import type { Prisma } from '@/generated/prisma/client';
 
 async function upsertWorkerStatus(agent: string, status: string = 'ONLINE') {
   await prisma.workerStatus.upsert({
@@ -108,10 +109,10 @@ async function main() {
 
     try {
       const { transitionTask } = await import('@/lib/transition');
-      const task = await transitionTask(taskId, values.state as any, values.result);
+      const task = await transitionTask(taskId, values.state as TaskState, values.result);
       
       // If there are specific fields like next-agent that transitionTask doesn't handle natively via state
-      const extraUpdate: any = {};
+      const extraUpdate: Prisma.TaskUpdateInput = {};
       if (values['next-agent']) extraUpdate.nextAgent = values['next-agent'];
       if (values['on-failure-agent']) extraUpdate.onFailureAgent = values['on-failure-agent'];
       
@@ -128,8 +129,9 @@ async function main() {
       }
 
       console.log(`Task ${task.id} updated successfully.`);
-    } catch (e: any) {
-      console.error(`Failed to update task: ${e.message}`);
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      console.error(`Failed to update task: ${message}`);
       process.exit(1);
     }
 
@@ -154,7 +156,7 @@ async function main() {
       process.exit(1);
     }
 
-    if (!MESSAGE_TYPES.includes(values.type as any)) {
+    if (!MESSAGE_TYPES.includes(values.type as (typeof MESSAGE_TYPES)[number])) {
       console.error(`Invalid type. Must be one of: ${MESSAGE_TYPES.join(', ')}`);
       process.exit(1);
     }
@@ -174,9 +176,9 @@ async function main() {
 
     console.log(`Message sent successfully with ID: ${message.id}`);
     
-    // Process handoffs to see if this message triggers an immediate task handoff
+    // F7: Process handoffs scoped to the specific task (not full table scan)
     const { processHandoffs } = await import('@/lib/handoff');
-    await processHandoffs();
+    await processHandoffs(values.task || undefined);
 
     process.exit(0);
   }
@@ -197,7 +199,7 @@ async function main() {
       process.exit(1);
     }
 
-    const where: any = { toAgent: values.agent };
+    const where: Prisma.AgentMessageWhereInput = { toAgent: values.agent };
     if (values.status) where.status = values.status;
     else where.status = 'UNREAD'; // Default to unread
 
@@ -243,25 +245,44 @@ async function main() {
     }
 
     const tasksData = JSON.parse(values.tasks);
+    const created: { id: string; title: string; agent: string; description?: string | null }[] = [];
     
     for (let i = 0; i < tasksData.length; i++) {
       const t = tasksData[i];
       const nextTask = tasksData[i + 1];
       
-      await prisma.task.create({
+      const task = await prisma.task.create({
         data: {
           title: t.title,
           description: t.description,
           agent: t.agent,
-          nextAgent: nextTask ? nextTask.agent : undefined,
+          nextAgent: t.nextAgent ?? (nextTask ? nextTask.agent : undefined),
+          onFailureAgent: t.onFailureAgent,
           goalId: goal.id,
           projectId: goal.projectId,
           state: 'BACKLOG',
         },
       });
+      created.push(task);
     }
 
-    console.log(`Successfully planned ${tasksData.length} tasks for goal ${goal.id}`);
+    // F6: Dispatch REQUEST to the first task's agent so the pipeline starts
+    // (matching the MCP server's plan_goal behavior)
+    if (created.length > 0) {
+      const first = created[0];
+      await prisma.agentMessage.create({
+        data: {
+          fromAgent: 'System',
+          toAgent: first.agent,
+          goalId: goal.id,
+          taskId: first.id,
+          type: 'REQUEST',
+          content: `ACTION REQUIRED: You have been assigned Task ${first.id} ("${first.title}") as the first step of goal "${goal.title}".\n\nDescription: ${first.description || 'No description provided.'}\n\nStart working on it.`,
+        },
+      });
+    }
+
+    console.log(`Successfully planned ${created.length} tasks for goal ${goal.id}`);
     process.exit(0);
   }
 

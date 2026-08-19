@@ -1,6 +1,14 @@
-repomix-output.xml
-repomix-output.txt
+repomix-output.*
 *.db
 *.db-journal
 node_modules
 .next
+.git
+.opencode
+graphify-out/
+logs/
+temp-repos/
+package-lock.json
+*.tsbuildinfo
+test-fixtures/
+archivv/

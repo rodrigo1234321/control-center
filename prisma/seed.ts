@@ -79,7 +79,7 @@ async function main() {
     },
   });
 
-  const task4 = await prisma.task.create({
+  await prisma.task.create({
     data: {
       title: 'QA',
       description: 'End-to-end testing',

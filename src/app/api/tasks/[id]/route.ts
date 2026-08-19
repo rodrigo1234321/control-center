@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { TASK_STATES, type TaskState } from '@/lib/types';
+import type { TaskState } from '@/lib/types';
 import { transitionTask } from '@/lib/transition';
 
 /** GET /api/tasks/:id — Get task detail */
@@ -42,11 +42,12 @@ export async function PATCH(
     const updated = await transitionTask(id, state as TaskState, result);
 
     return NextResponse.json(updated);
-  } catch (error: any) {
+  } catch (error) {
     console.error('[PATCH /api/tasks/:id]', error);
-    if (error.message.includes('Invalid transition') || error.message.includes('not found')) {
-      return NextResponse.json({ error: error.message }, { status: 422 });
+    const message = error instanceof Error ? error.message : 'Failed to update task';
+    if (message.includes('Invalid transition') || message.includes('not found')) {
+      return NextResponse.json({ error: message }, { status: 422 });
     }
-    return NextResponse.json({ error: 'Failed to update task' }, { status: 500 });
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

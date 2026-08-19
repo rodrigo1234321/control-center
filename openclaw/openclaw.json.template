@@ -1,0 +1,52 @@
+{
+  // Configuración de OpenClaw Gateway para Control Center
+  // Copiar este archivo a ~/.openclaw/openclaw.json tras ejecutar `openclaw onboard`
+
+  "gateway": {
+    "host": "127.0.0.1",
+    "port": 18789,
+    "auth": {
+      "mode": "token"
+    }
+  },
+
+  "channels": {
+    "telegram": {
+      "enabled": true,
+      // BARRERA 1: Solo tu ID numérico de Telegram (no usernames)
+      // Obtené tu ID hablando con @userinfobot en Telegram
+      "allowFrom": ["TU_TELEGRAM_USER_ID_AQUI"],
+      "botToken": "TU_TELEGRAM_BOT_TOKEN_DE_BOTFATHER",
+      "notificationEvents": {
+        "approvals": true,
+        "circuitBreaker": true,
+        "goalCompleted": true
+      }
+    }
+  },
+
+  "agent": {
+    "name": "ControlCenterOperator",
+    "systemPrompt": "Sos el operador remoto de Control Center. Tu responsabilidad es permitir al usuario monitorear el estado, crear goals, autorizar aprobaciones y supervisar a los agentes (Antigravity, OpenCode, OpenDesign). IMPORTANTE: NUNCA ejecutes comandos de terminal directamente. Todas las acciones se realizan consultando o mutando la API de Control Center en http://localhost:3100/api.",
+    "tools": {
+      "exec": {
+        // BARRERA 2 y 4: Modo restrictivo para comandos de sistema
+        "mode": "ask"
+      }
+    }
+  },
+
+  "services": {
+    "controlCenter": {
+      "apiUrl": "http://localhost:3100",
+      "endpoints": {
+        "health": "/api/system/health",
+        "emergencyStop": "/api/system/emergency-stop",
+        "resume": "/api/system/resume",
+        "goals": "/api/goals",
+        "tasks": "/api/tasks",
+        "approvals": "/api/approvals"
+      }
+    }
+  }
+}

@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { title, description, projectId, agent, requiresApproval } = body;
+    const { title, description, projectId, agent, requiresApproval, notify } = body;
 
     if (!title || !projectId || !agent) {
       return NextResponse.json(
@@ -65,6 +65,19 @@ export async function POST(request: NextRequest) {
         action: `Created task: ${title}`,
       },
     });
+
+    // If notify is set, dispatch a REQUEST message so the agent's worker picks it up
+    if (notify) {
+      await prisma.agentMessage.create({
+        data: {
+          taskId: task.id,
+          fromAgent: 'USER',
+          toAgent: agent,
+          type: 'REQUEST',
+          content: `ACTION REQUIRED: You have been assigned Task ${task.id} ("${title}").\n\nDescription: ${description || 'No description provided.'}\n\nPlease pick up this task and execute it.`,
+        },
+      });
+    }
 
     return NextResponse.json(task, { status: 201 });
   } catch (error) {

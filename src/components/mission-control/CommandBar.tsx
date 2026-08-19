@@ -19,7 +19,8 @@ export function CommandBar() {
     // Simplistic heuristic to split title and description
     const title = prompt.split('.')[0].slice(0, 40) || 'New Mission';
     const projectId = state.projects[0].id; // Use first project for now
-    
+    const agent = 'Antigravity'; // Planner agent handles initial decomposition
+
     try {
       const res = await fetch('/api/goals', {
         method: 'POST',
@@ -28,6 +29,7 @@ export function CommandBar() {
           title,
           description: prompt,
           projectId,
+          agent,
         }),
       });
       

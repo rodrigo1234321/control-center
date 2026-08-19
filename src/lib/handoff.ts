@@ -1,8 +1,10 @@
 import { prisma } from '@/lib/prisma';
+import type { DbClient } from '@/lib/types';
+import { RetryPolicy } from '@/workers/policies/retry-policy';
 
 const MAX_RETRIES = 3;
 
-export async function processHandoffs(specificTaskId?: string, client: any = prisma) {
+export async function processHandoffs(specificTaskId?: string, client: DbClient = prisma) {
   // If specificTaskId is provided, only process that task, otherwise process all unhanded-off tasks.
   const baseWhere = { handedOff: false };
   const doneWhere = specificTaskId ? { ...baseWhere, id: specificTaskId, state: 'DONE' } : { ...baseWhere, state: 'DONE' };
@@ -41,6 +43,17 @@ export async function processHandoffs(specificTaskId?: string, client: any = pri
           state: 'BACKLOG',
         },
       });
+    } else if (task.result) {
+      // F4: Enriquecer la tarea pre-planeada con el resultado del predecesor
+      // para que el agente tenga contexto aun si no lee los mensajes.
+      await client.task.update({
+        where: { id: nextTask.id },
+        data: {
+          description: nextTask.description
+            ? `${nextTask.description}\n\n---\nPrevious agent result:\n${task.result}`
+            : `Previous context / result:\n${task.result}`,
+        },
+      });
     }
 
     await client.agentMessage.create({
@@ -68,7 +81,7 @@ export async function processHandoffs(specificTaskId?: string, client: any = pri
     });
   }
 
-  // 2. Process FAILED tasks
+  // 2. Process FAILED tasks (con gobierno estricto de RetryPolicy y FailureClassifier)
   const failedWhere = specificTaskId ? { ...baseWhere, id: specificTaskId, state: 'FAILED' } : { ...baseWhere, state: 'FAILED' };
   const failedTasks = await client.task.findMany({
     where: {
@@ -80,8 +93,11 @@ export async function processHandoffs(specificTaskId?: string, client: any = pri
   for (const task of failedTasks) {
     if (!task.onFailureAgent) continue;
 
-    if (task.retryCount < MAX_RETRIES) {
-      console.log(`[Handoff] Failure fix from ${task.agent} to ${task.onFailureAgent} (Task ID: ${task.id}, Retry: ${task.retryCount + 1})`);
+    // Evaluar con RetryPolicy antes de cualquier reintento automático
+    const decision = RetryPolicy.evaluate(task.result, task.retryCount);
+
+    if (decision.shouldRetry) {
+      console.log(`[Handoff] Failure fix from ${task.agent} to ${task.onFailureAgent} (Task ID: ${task.id}, Retry: ${task.retryCount + 1}): ${decision.description}`);
 
       const newTask = await client.task.create({
         data: {
@@ -116,17 +132,27 @@ export async function processHandoffs(specificTaskId?: string, client: any = pri
         data: {
           taskId: task.id,
           agent: 'System',
-          action: `Auto-fix assigned to ${task.onFailureAgent} -> Created Task ${newTask.id} (Retry ${task.retryCount + 1}/${MAX_RETRIES})`,
+          action: `Auto-fix assigned to ${task.onFailureAgent} -> Created Task ${newTask.id} (${decision.description})`,
         },
       });
     } else {
-      console.log(`[Handoff] Max retries reached for Task ID: ${task.id}. Requesting human approval.`);
-      
+      console.log(`[Handoff] Retry blocked by policy for Task ID: ${task.id} (${decision.classification.category}): ${decision.description}`);
+
+      if (decision.openCircuit) {
+        await client.task.update({
+          where: { id: task.id },
+          data: {
+            circuitOpenedAt: new Date(),
+            lastError: decision.description,
+          },
+        });
+      }
+
       await client.approval.create({
         data: {
           taskId: task.id,
           actionType: 'CLIENT_ACTION',
-          description: `Max retries (${MAX_RETRIES}) reached for: ${task.title}. Intervention required.`,
+          description: `Bloqueo de reintento (${decision.classification.category}): ${decision.description}`,
         },
       });
 
@@ -137,7 +163,7 @@ export async function processHandoffs(specificTaskId?: string, client: any = pri
           goalId: task.goalId,
           taskId: task.id,
           type: 'ERROR',
-          content: `Max retries reached for task. Waiting for human intervention.`,
+          content: `Reintentos detenidos (${decision.classification.category}): ${decision.description}. Esperando intervención humana.`,
         },
       });
 
@@ -150,10 +176,54 @@ export async function processHandoffs(specificTaskId?: string, client: any = pri
         data: {
           taskId: task.id,
           agent: 'System',
-          action: `Max retries reached. Created manual approval requirement for Task ${task.id}`,
+          action: `Retry blocked (${decision.classification.category}). Created approval for Task ${task.id}`,
         },
       });
     }
+  }
+
+  // 2b. Process FAILED tasks SIN onFailureAgent
+  const deadEndWhere = specificTaskId
+    ? { ...baseWhere, id: specificTaskId, state: 'FAILED' as const }
+    : { ...baseWhere, state: 'FAILED' as const };
+  const deadEndTasks = await client.task.findMany({
+    where: { ...deadEndWhere, onFailureAgent: null },
+  });
+
+  for (const task of deadEndTasks) {
+    console.log(`[Handoff] Task ${task.id} failed with no onFailureAgent — requesting human approval directly.`);
+
+    await client.approval.create({
+      data: {
+        taskId: task.id,
+        actionType: 'CLIENT_ACTION',
+        description: `Task failed with no recovery agent configured: ${task.title}.`,
+      },
+    });
+
+    await client.agentMessage.create({
+      data: {
+        fromAgent: 'System',
+        toAgent: task.agent,
+        goalId: task.goalId,
+        taskId: task.id,
+        type: 'ERROR',
+        content: `Task failed and has no onFailureAgent configured. Waiting for human intervention.\n\nError:\n${task.result || 'Unknown error.'}`,
+      },
+    });
+
+    await client.task.update({
+      where: { id: task.id },
+      data: { handedOff: true },
+    });
+
+    await client.activityLog.create({
+      data: {
+        taskId: task.id,
+        agent: 'System',
+        action: `No recovery agent configured. Created manual approval requirement for Task ${task.id}`,
+      },
+    });
   }
 
   // 3. Process Goal completion
@@ -165,15 +235,15 @@ export async function processHandoffs(specificTaskId?: string, client: any = pri
   for (const goal of activeGoals) {
     if (goal.tasks.length === 0) continue;
 
-    const activeOrPendingTasks = goal.tasks.filter((t: any) => 
+    const activeOrPendingTasks = goal.tasks.filter((t) => 
       ['BACKLOG', 'RUNNING', 'REVIEW', 'PAUSED', 'BLOCKED'].includes(t.state)
     );
-    const pendingHandoffs = goal.tasks.filter((t: any) => 
+    const pendingHandoffs = goal.tasks.filter((t) => 
       (t.state === 'DONE' && t.nextAgent && !t.handedOff) || 
       (t.state === 'FAILED' && t.onFailureAgent && !t.handedOff)
     );
     
-    const hasTerminalFailures = goal.tasks.some((t: any) => 
+    const hasTerminalFailures = goal.tasks.some((t) => 
       t.state === 'FAILED' && (!t.onFailureAgent || (t.handedOff && t.retryCount >= MAX_RETRIES))
     );
 
@@ -191,6 +261,43 @@ export async function processHandoffs(specificTaskId?: string, client: any = pri
           action: `Goal COMPLETED: ${goal.title}`,
         },
       });
+    }
+
+    // F2: Si todas las tareas terminaron y solo quedan terminal failures (ya escaladas),
+    // el goal no debe quedarse ACTIVE para siempre — marcarlo FAILED.
+    const allTerminalFailuresHandedOff = hasTerminalFailures && goal.tasks
+      .filter((t) => t.state === 'FAILED' && (!t.onFailureAgent || (t.handedOff && t.retryCount >= MAX_RETRIES)))
+      .every((t) => t.handedOff);
+    
+    if (
+      activeOrPendingTasks.length === 0 &&
+      pendingHandoffs.length === 0 &&
+      hasTerminalFailures &&
+      allTerminalFailuresHandedOff
+    ) {
+      // Check if there are any PENDING approvals for this goal's tasks — if so, wait for human.
+      const pendingGoalApprovals = await client.approval.findFirst({
+        where: {
+          status: 'PENDING',
+          taskId: { in: goal.tasks.map((t) => t.id) },
+        },
+      });
+
+      if (!pendingGoalApprovals) {
+        console.log(`[Handoff] Goal FAILED (unrecoverable terminal failures): ${goal.title} (Goal ID: ${goal.id})`);
+
+        await client.goal.update({
+          where: { id: goal.id },
+          data: { status: 'FAILED' },
+        });
+
+        await client.activityLog.create({
+          data: {
+            agent: 'System',
+            action: `Goal FAILED (terminal failures, no pending approvals): ${goal.title}`,
+          },
+        });
+      }
     }
   }
 }

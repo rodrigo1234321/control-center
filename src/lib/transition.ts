@@ -1,14 +1,18 @@
 import { prisma } from '@/lib/prisma';
-import { TASK_STATES, isValidTransition, type TaskState } from '@/lib/types';
+import { TASK_STATES, isValidTransition, type DbClient, type TaskState } from '@/lib/types';
 import { processHandoffs } from './handoff';
+import { snapshotRepo } from './repo-snapshot';
 
 export async function transitionTask(
-  id: string, 
-  state?: TaskState, 
+  id: string,
+  state?: TaskState,
   result?: string,
-  client: any = prisma
+  client: DbClient = prisma
 ) {
-  const existing = await client.task.findUnique({ where: { id } });
+  const existing = await client.task.findUnique({
+    where: { id },
+    include: { project: { select: { repoPath: true } } },
+  });
   if (!existing) {
     throw new Error('Task not found');
   }
@@ -17,19 +21,56 @@ export async function transitionTask(
   if (result !== undefined) updateData.result = result;
 
   let finalState = state;
+  let diskCheckFailure: string | null = null;
 
   if (state && TASK_STATES.includes(state)) {
     if (!isValidTransition(existing.state as TaskState, state)) {
       throw new Error(`Invalid transition: ${existing.state} → ${state}`);
     }
 
-    if (state === 'DONE' && existing.requiresApproval && existing.state !== 'REVIEW') {
+    // Snapshot al reclamar la tarea (RUNNING) — línea de base contra la que se compara en DONE
+    if (state === 'RUNNING' && existing.project?.repoPath) {
+      updateData.claimSnapshot = await snapshotRepo(existing.project.repoPath);
+    }
+
+    // Verificación de disco en DONE:
+    // Aplica a tareas productivas (Scaffold, Design, Build, Fix) con repoPath y snapshot.
+    // Se exceptúan tareas explícitamente de solo lectura (Planning, Verify, QA, Review, Audit).
+    const isReadOnlyTask = /^(planning|verify|qa|review|audit)/i.test(existing.title) ||
+      existing.title.toLowerCase().includes('verify') ||
+      existing.title.toLowerCase().includes('planning');
+
+    if (
+      state === 'DONE' &&
+      !isReadOnlyTask &&
+      existing.project?.repoPath &&
+      existing.claimSnapshot
+    ) {
+      const freshSnapshot = await snapshotRepo(existing.project.repoPath);
+      if (freshSnapshot === existing.claimSnapshot) {
+        diskCheckFailure =
+          `No se detectaron cambios en "${existing.project.repoPath}" desde que se reclamó la tarea. ` +
+          `Probable no-op silencioso del agente (permiso headless denegado, hook mockeado, o sesión que ` +
+          `nunca llegó a ejecutar). Se rechaza el DONE.`;
+      }
+    }
+
+    if (diskCheckFailure) {
+      finalState = 'FAILED';
+      updateData.result = diskCheckFailure;
+      updateData.finishedAt = new Date();
+    } else if (state === 'DONE' && existing.requiresApproval && existing.state !== 'REVIEW') {
       finalState = 'REVIEW';
+
+      // F5: actionType dinámico basado en el tipo de tarea
+      const actionType = existing.title.toLowerCase().includes('delete') ? 'DELETE'
+        : existing.title.toLowerCase().includes('fix') ? 'CLIENT_ACTION'
+        : 'DEPLOY';
 
       await client.approval.create({
         data: {
           taskId: id,
-          actionType: 'DEPLOY',
+          actionType,
           description: `Approval required for: ${existing.title}`,
         },
       });
@@ -64,7 +105,9 @@ export async function transitionTask(
       data: {
         taskId: id,
         agent: existing.agent,
-        action: `Task ${existing.title}: ${existing.state} → ${finalState}`,
+        action: diskCheckFailure
+          ? `Task ${existing.title}: DONE rechazado por disk-check → FAILED (sin cambios en repoPath)`
+          : `Task ${existing.title}: ${existing.state} → ${finalState}`,
       },
     });
 

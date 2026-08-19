@@ -88,9 +88,10 @@ async function main() {
             try {
               await transitionTask(taskId, 'FAILED', 'Stopped by operator');
               ackContent = `Stopped task ${taskId}`;
-            } catch (err: any) {
-              console.error(`[${agent}] [Dummy Worker] Failed to stop task ${taskId}:`, err.message);
-              ackContent = `Failed to stop task ${taskId}: ${err.message}`;
+            } catch (err) {
+              const message = err instanceof Error ? err.message : String(err);
+              console.error(`[${agent}] [Dummy Worker] Failed to stop task ${taskId}:`, message);
+              ackContent = `Failed to stop task ${taskId}: ${message}`;
             }
           }
         } else if (msg.content.startsWith('PAUSE_TASK:')) {
@@ -100,9 +101,10 @@ async function main() {
             try {
               await transitionTask(taskId, 'PAUSED');
               ackContent = `Paused task ${taskId}`;
-            } catch (err: any) {
-              console.error(`[${agent}] [Dummy Worker] Failed to pause task ${taskId}:`, err.message);
-              ackContent = `Failed to pause task ${taskId}: ${err.message}`;
+            } catch (err) {
+              const message = err instanceof Error ? err.message : String(err);
+              console.error(`[${agent}] [Dummy Worker] Failed to pause task ${taskId}:`, message);
+              ackContent = `Failed to pause task ${taskId}: ${message}`;
             }
           }
         } else if (msg.content.startsWith('RESUME_TASK:')) {
@@ -112,9 +114,10 @@ async function main() {
             try {
               await transitionTask(taskId, 'RUNNING');
               ackContent = `Resumed task ${taskId}`;
-            } catch (err: any) {
-              console.error(`[${agent}] [Dummy Worker] Failed to resume task ${taskId}:`, err.message);
-              ackContent = `Failed to resume task ${taskId}: ${err.message}`;
+            } catch (err) {
+              const message = err instanceof Error ? err.message : String(err);
+              console.error(`[${agent}] [Dummy Worker] Failed to resume task ${taskId}:`, message);
+              ackContent = `Failed to resume task ${taskId}: ${message}`;
             }
           }
         } else if (msg.content.startsWith('STOP')) {
@@ -168,7 +171,7 @@ async function main() {
           
           try {
             await fs.mkdir(path.dirname(targetFile), { recursive: true });
-          } catch (e) {}
+          } catch {}
 
           if (failOnce && !hasFailedOnce) {
             console.log(`[Dummy Worker] Simulating failure!`);

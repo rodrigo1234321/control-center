@@ -1,0 +1,10 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "control-center": {
+      "type": "local",
+      "command": ["node", "node_modules/tsx/dist/cli.mjs", "src/mcp/server.ts", "--agent", "Antigravity"],
+      "enabled": true
+    }
+  }
+}

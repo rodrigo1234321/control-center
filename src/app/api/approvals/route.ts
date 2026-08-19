@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import type { Prisma } from '@/generated/prisma/client';
 
 /** GET /api/approvals — List pending approvals */
 export async function GET(request: NextRequest) {
@@ -7,7 +8,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const projectId = searchParams.get('projectId');
 
-    const where: any = { status: 'PENDING' };
+    const where: Prisma.ApprovalWhereInput = { status: 'PENDING' };
     if (projectId) where.task = { projectId };
 
     const approvals = await prisma.approval.findMany({

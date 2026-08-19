@@ -4,6 +4,8 @@ import { ActiveGoal } from '@/components/mission-control/ActiveGoal';
 import { AgentPipeline } from '@/components/mission-control/AgentPipeline';
 import { ApprovalsSection } from '@/components/mission-control/ApprovalsSection';
 import { TasksPanel } from '@/components/mission-control/TasksPanel';
+import { TaskDispatch } from '@/components/mission-control/TaskDispatch';
+import { MessageComposer } from '@/components/mission-control/MessageComposer';
 import { LiveActivity } from '@/components/mission-control/LiveActivity';
 import { CommandBar } from '@/components/mission-control/CommandBar';
 import { Terminal } from 'lucide-react';
@@ -40,15 +42,15 @@ export default function Home() {
             {/* Tasks Panel */}
             <TasksPanel />
 
+            {/* Dispatch & Communications */}
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
+              <TaskDispatch />
+              <MessageComposer />
+            </div>
+
             {/* Bottom row: Live Activity */}
-            <div className="flex-1 min-h-[300px] border border-white/5 rounded-xl bg-surface/30 overflow-hidden flex flex-col">
-              <div className="px-4 py-3 border-b border-white/5 flex items-center gap-2">
-                <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                <span className="text-xs font-mono text-zinc-500 uppercase tracking-widest">Live Activity</span>
-              </div>
-              <div className="flex-1 overflow-y-auto p-4">
-                <LiveActivity />
-              </div>
+            <div className="border border-white/5 rounded-xl bg-surface/30 p-6 flex flex-col gap-4">
+              <LiveActivity />
             </div>
           </div>
 

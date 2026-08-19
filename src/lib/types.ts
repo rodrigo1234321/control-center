@@ -10,6 +10,9 @@ export type ApprovalStatus = (typeof APPROVAL_STATUSES)[number];
 export const AGENTS = ['Antigravity', 'OpenCode', 'OpenHands', 'OpenDesign'] as const;
 export type Agent = (typeof AGENTS)[number];
 
+/** Prisma client usable in both API routes and the MCP server (supports transactions) */
+export type DbClient = import('@/generated/prisma/client').PrismaClient | import('@/generated/prisma/client').Prisma.TransactionClient;
+
 /** Approval action types */
 export const ACTION_TYPES = ['DEPLOY', 'DELETE', 'CLIENT_ACTION'] as const;
 export type ActionType = (typeof ACTION_TYPES)[number];
@@ -22,19 +25,20 @@ export const MESSAGE_TYPES = [
 ] as const;
 export type MessageType = (typeof MESSAGE_TYPES)[number];
 
-/** Valid state transitions */
+/** Valid state transitions (resiliente y robusta ante reinicios y errores tempranos) */
 export const VALID_TRANSITIONS: Record<TaskState, TaskState[]> = {
-  BACKLOG: ['RUNNING', 'PAUSED', 'BLOCKED'],
-  RUNNING: ['REVIEW', 'DONE', 'FAILED', 'PAUSED', 'BLOCKED'],
-  REVIEW: ['DONE', 'FAILED'],
-  DONE: [],
-  FAILED: ['BACKLOG', 'PAUSED', 'BLOCKED'],
+  BACKLOG: ['RUNNING', 'DONE', 'FAILED', 'PAUSED', 'BLOCKED'],
+  RUNNING: ['REVIEW', 'DONE', 'FAILED', 'PAUSED', 'BLOCKED', 'BACKLOG'],
+  REVIEW: ['DONE', 'FAILED', 'BACKLOG'],
+  DONE: ['BACKLOG'], // Permitido para replanificación o reinicio manual
+  FAILED: ['BACKLOG', 'PAUSED', 'BLOCKED', 'RUNNING'],
   PAUSED: ['RUNNING', 'BACKLOG', 'FAILED', 'BLOCKED'],
   BLOCKED: ['RUNNING', 'BACKLOG', 'PAUSED', 'FAILED'],
 };
 
 /** Check if a state transition is valid */
 export function isValidTransition(from: TaskState, to: TaskState): boolean {
+  if (from === to) return true; // Las transiciones idempotentes siempre son válidas
   return VALID_TRANSITIONS[from]?.includes(to) ?? false;
 }
 

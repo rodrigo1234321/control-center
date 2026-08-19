@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import type { Prisma } from '@/generated/prisma/client';
 
 export async function GET(
   req: NextRequest,
@@ -52,9 +53,9 @@ export async function GET(
     };
 
     return NextResponse.json(result);
-  } catch (error: any) {
+  } catch (error) {
     console.error('Failed to fetch goal:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: error instanceof Error ? error.message : 'Failed to fetch goal' }, { status: 500 });
   }
 }
 
@@ -75,7 +76,7 @@ export async function PATCH(
     }
 
     // Allow updating status, title, description
-    const updateData: any = {};
+    const updateData: Prisma.GoalUpdateInput = {};
     if (body.status) updateData.status = body.status;
     if (body.title) updateData.title = body.title;
     if (body.description) updateData.description = body.description;
@@ -86,8 +87,8 @@ export async function PATCH(
     });
 
     return NextResponse.json(goal);
-  } catch (error: any) {
+  } catch (error) {
     console.error('Failed to update goal:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: error instanceof Error ? error.message : 'Failed to update goal' }, { status: 500 });
   }
 }

@@ -53,7 +53,14 @@ model Task {
   nextAgent        String?
   onFailureAgent   String?
   retryCount       Int       @default(0)
+  circuitOpenedAt  DateTime?
   handedOff        Boolean   @default(false)
+  claimSnapshot    String?
+  jobId            String?
+  workerId         String?
+  lastError        String?
+  lastStartedAt    DateTime?
+  lastFinishedAt   DateTime?
   createdAt        DateTime  @default(now())
   finishedAt       DateTime?
   updatedAt        DateTime  @updatedAt

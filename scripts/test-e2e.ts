@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import { prisma } from '@/lib/prisma';
-import { spawn } from 'node:child_process';
+import { spawn, type ChildProcess } from 'node:child_process';
 import fs from 'fs/promises';
 import path from 'path';
 
@@ -10,7 +10,7 @@ async function sleep(ms: number) {
 
 async function main() {
   console.log('🚀 Starting E2E Autonomous Engine Test...');
-  let workers: any[] = [];
+  let workers: ChildProcess[] = [];
   
   let isCleaningUp = false;
 
@@ -81,8 +81,8 @@ async function main() {
     }
     
     const targetFile = path.join(project.repoPath!, 'landing', 'index.html');
-    try { await fs.rm(targetFile, { force: true }); } catch (e) {}
-    try { await fs.mkdir(path.dirname(targetFile), { recursive: true }); } catch (e) {}
+    try { await fs.rm(targetFile, { force: true }); } catch {}
+    try { await fs.mkdir(path.dirname(targetFile), { recursive: true }); } catch {}
 
     // 2. Create Goal
     console.log('\n[E2E] Creating Goal...');
@@ -110,7 +110,7 @@ async function main() {
       },
     });
 
-    const qaTask = await prisma.task.create({
+    await prisma.task.create({
       data: {
         title: 'QA',
         description: 'Test the implementation',

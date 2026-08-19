@@ -120,6 +120,34 @@ export function Sidebar() {
           ))}
         </div>
       </div>
+
+      {/* System Health & Emergency Controls */}
+      <div className="pt-4 border-t border-zinc-800/80">
+        <div className="flex items-center justify-between mb-3">
+          <span className="text-xs font-mono text-zinc-500 uppercase tracking-widest">System Controls</span>
+        </div>
+        <div className="flex flex-col gap-2">
+          <button
+            onClick={async () => {
+              if (confirm('¿Pausar todos los workers y tareas del sistema (Emergency Stop)?')) {
+                await fetch('/api/system/emergency-stop', { method: 'POST' });
+              }
+            }}
+            className="flex items-center justify-center gap-2 px-3 py-2 text-xs font-mono font-semibold rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 transition-colors"
+          >
+            <ShieldAlert className="w-3.5 h-3.5" />
+            <span>EMERGENCY STOP</span>
+          </button>
+          <button
+            onClick={async () => {
+              await fetch('/api/system/resume', { method: 'POST' });
+            }}
+            className="flex items-center justify-center gap-2 px-3 py-1.5 text-xs font-mono text-zinc-400 hover:text-zinc-200 bg-zinc-800/50 hover:bg-zinc-800 rounded-lg border border-zinc-700/40 transition-colors"
+          >
+            <span>Resume System</span>
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

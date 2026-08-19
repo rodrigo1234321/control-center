@@ -3,6 +3,7 @@
 import React from 'react';
 import { useMissionControl } from './MissionControlContext';
 import { useProjectContext } from '@/contexts/ProjectContext';
+import { WorkerControl } from './WorkerControl';
 import { STATE_COLORS } from '@/lib/types';
 import { ListTodo, Bot, Clock, FolderGit2, Target, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -14,8 +15,10 @@ export function TasksPanel() {
   const selectedProject = state?.projects.find((p) => p.id === selectedProjectId);
   const activeGoal = state?.activeGoal;
 
+  type MissionTask = NonNullable<typeof state>['projects'][number]['tasks'][number];
+
   // Determine tasks to display: Selected project tasks if project selected, otherwise active goal tasks
-  let tasksToDisplay: any[] = [];
+  let tasksToDisplay: MissionTask[] = [];
   let headerLabel = 'Tasks';
   let headerSub = 'Active Mission';
 
@@ -100,6 +103,14 @@ export function TasksPanel() {
                   </div>
 
                   <div className="flex items-center gap-3 shrink-0 self-end md:self-center">
+                    {['RUNNING', 'PAUSED'].includes(task.state) && (
+                      <WorkerControl
+                        taskId={task.id}
+                        agentName={task.agent}
+                        currentState={task.state}
+                      />
+                    )}
+
                     <div className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-white/5 border border-white/5 text-xs font-mono text-zinc-300">
                       <Bot className="w-3.5 h-3.5 text-zinc-400" />
                       <span>{task.agent}</span>

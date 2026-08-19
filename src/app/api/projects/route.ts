@@ -35,8 +35,8 @@ export async function POST(request: NextRequest) {
     });
 
     return NextResponse.json(project, { status: 201 });
-  } catch (error: any) {
-    if (error?.code === 'P2002') {
+  } catch (error) {
+    if ((error as { code?: string } | null)?.code === 'P2002') {
       return NextResponse.json({ error: 'A project with this slug already exists' }, { status: 409 });
     }
     console.error('[POST /api/projects]', error);

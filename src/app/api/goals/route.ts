@@ -91,8 +91,8 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json(goal, { status: 201 });
-  } catch (error: any) {
+  } catch (error) {
     console.error('Failed to create goal:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: error instanceof Error ? error.message : 'Failed to create goal' }, { status: 500 });
   }
 }

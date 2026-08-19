@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import type { Prisma } from '@/generated/prisma/client';
 
 /** GET /api/activity — Get recent activity log entries */
 export async function GET(request: NextRequest) {
@@ -8,7 +9,7 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '50', 10);
     const projectId = searchParams.get('projectId');
 
-    let where: any = {};
+    let where: Prisma.ActivityLogWhereInput = {};
     if (projectId) {
       const projectTasks = await prisma.task.findMany({
         where: { projectId },

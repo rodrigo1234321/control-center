@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { MESSAGE_TYPES } from '@/lib/types';
+import type { Prisma } from '@/generated/prisma/client';
 
 export async function GET(req: NextRequest) {
   try {
@@ -10,7 +11,7 @@ export async function GET(req: NextRequest) {
     const status = searchParams.get('status');
     const projectId = searchParams.get('projectId');
 
-    const where: any = {};
+    const where: Prisma.AgentMessageWhereInput = {};
     if (toAgent) where.toAgent = toAgent;
     if (goalId) where.goalId = goalId;
     if (status) where.status = status;
@@ -26,9 +27,9 @@ export async function GET(req: NextRequest) {
     });
 
     return NextResponse.json(messages);
-  } catch (error: any) {
+  } catch (error) {
     console.error('Failed to fetch messages:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: error instanceof Error ? error.message : 'Failed to fetch messages' }, { status: 500 });
   }
 }
 
@@ -64,8 +65,8 @@ export async function POST(req: NextRequest) {
     });
 
     return NextResponse.json(message, { status: 201 });
-  } catch (error: any) {
+  } catch (error) {
     console.error('Failed to create message:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: error instanceof Error ? error.message : 'Failed to create message' }, { status: 500 });
   }
 }

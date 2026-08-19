@@ -1,6 +1,7 @@
 'use client';
 
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { getMissionControlState } from '@/app/actions';
 
 type StateType = Awaited<ReturnType<typeof getMissionControlState>>;
@@ -18,28 +19,16 @@ const MissionControlContext = createContext<MissionControlContextType>({
 });
 
 export function MissionControlProvider({ children }: { children: React.ReactNode }) {
-  const [state, setState] = useState<StateType | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  const fetchState = async () => {
-    try {
-      const newState = await getMissionControlState();
-      setState(newState);
-    } catch (e) {
-      console.error('Failed to fetch mission control state', e);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchState();
-    const interval = setInterval(fetchState, 3000);
-    return () => clearInterval(interval);
-  }, []);
+  const { data, isLoading, refetch } = useQuery({
+    queryKey: ['mission-control'],
+    queryFn: getMissionControlState,
+    refetchInterval: 3000,
+  });
 
   return (
-    <MissionControlContext.Provider value={{ state, loading, refresh: fetchState }}>
+    <MissionControlContext.Provider
+      value={{ state: data ?? null, loading: isLoading, refresh: async () => { await refetch(); } }}
+    >
       {children}
     </MissionControlContext.Provider>
   );
