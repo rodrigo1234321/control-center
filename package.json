@@ -16,6 +16,7 @@
     "db:studio": "npx prisma studio",
     "test:e2e": "tsx scripts/test-e2e.ts",
     "test:e2e-real": "tsx scripts/test-e2e-real.ts",
+    "test:chaos": "tsx scripts/test-chaos.ts",
     "test:mcp": "tsx scripts/test-mcp.ts",
     "test:prt": "tsx scripts/test-production-readiness.ts",
     "test:integration": "tsx scripts/test-integration.ts",

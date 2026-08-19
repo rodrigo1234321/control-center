@@ -8,9 +8,9 @@ const adapter = new PrismaBetterSqlite3({
 const prisma = new PrismaClient({ adapter });
 
 async function main() {
-  console.log('🌱 Seeding Control Center database...');
+  console.log('🌱 Inicializando Control Center en estado limpio y listo para operar...');
 
-  // Clean existing data
+  // Limpiar datos residuales
   await prisma.agentMessage.deleteMany();
   await prisma.approval.deleteMany();
   await prisma.activityLog.deleteMany();
@@ -18,137 +18,39 @@ async function main() {
   await prisma.goal.deleteMany();
   await prisma.project.deleteMany();
 
-  // Create Project
-  const project = await prisma.project.create({
+  // Crear Proyecto Base limpio (sin tareas pendientes encoladas)
+  const defaultProject = await prisma.project.create({
     data: {
-      name: 'WhatsApp AI SaaS',
-      slug: 'whatsapp-saas',
-      description: 'Build an AI-powered WhatsApp automation platform',
-      repoPath: 'c:\\Users\\rodri\\Desktop\\AI\\Projects\\whatsapp-saas',
+      name: 'Default Workspace',
+      slug: 'default-workspace',
+      description: 'Espacio de trabajo principal para consultas, pruebas y misiones bajo demanda.',
+      repoPath: null,
+      isActive: true,
     },
   });
 
-  // Create Goal
-  const goal = await prisma.goal.create({
+  // Registrar estado ONLINE para los agentes principales
+  const agents = ['Antigravity', 'OpenCode', 'OpenDesign', 'OpenHands'];
+  for (const agent of agents) {
+    await prisma.workerStatus.upsert({
+      where: { agent },
+      update: { status: 'ONLINE', lastSeenAt: new Date() },
+      create: { agent, status: 'ONLINE', lastSeenAt: new Date() },
+    });
+  }
+
+  // Registrar log de bienvenida
+  await prisma.activityLog.create({
     data: {
-      title: 'Build WhatsApp AI Platform',
-      description: 'Implement core functionality from planning to QA',
-      projectId: project.id,
-      status: 'ACTIVE',
+      projectId: defaultProject.id,
+      agent: 'System',
+      action: 'Control Center iniciado en modo limpio. Listo para recibir misiones y consultas.',
     },
   });
 
-  // Create Tasks (encadenadas)
-  const task1 = await prisma.task.create({
-    data: {
-      title: 'Planning',
-      description: 'Define architecture and endpoints',
-      projectId: project.id,
-      goalId: goal.id,
-      agent: 'Antigravity',
-      state: 'DONE',
-      result: 'Architecture planned.',
-      nextAgent: 'OpenDesign',
-      handedOff: true,
-    },
-  });
-
-  const task2 = await prisma.task.create({
-    data: {
-      title: 'Design',
-      description: 'Create UI mockups and design system',
-      projectId: project.id,
-      goalId: goal.id,
-      agent: 'OpenDesign',
-      state: 'DONE',
-      result: 'Design approved.',
-      nextAgent: 'OpenCode',
-      handedOff: true,
-    },
-  });
-
-  const task3 = await prisma.task.create({
-    data: {
-      title: 'Development',
-      description: 'Implement frontend and backend: FastAPI backend endpoints + modern landing page',
-      projectId: project.id,
-      goalId: goal.id,
-      agent: 'OpenCode',
-      state: 'BACKLOG',
-      nextAgent: 'Antigravity',
-      onFailureAgent: 'OpenCode',
-    },
-  });
-
-  await prisma.task.create({
-    data: {
-      title: 'QA Verification',
-      description: 'End-to-end testing and quality audit',
-      projectId: project.id,
-      goalId: goal.id,
-      agent: 'Antigravity',
-      state: 'BACKLOG',
-      onFailureAgent: 'OpenCode',
-    },
-  });
-
-  // Create Messages
-  await prisma.agentMessage.createMany({
-    data: [
-      {
-        fromAgent: 'Antigravity',
-        toAgent: 'OpenDesign',
-        goalId: goal.id,
-        taskId: task2.id,
-        type: 'HANDOFF',
-        content: 'Architecture planned. Ready for design.',
-        status: 'RESOLVED',
-      },
-      {
-        fromAgent: 'OpenDesign',
-        toAgent: 'OpenCode',
-        goalId: goal.id,
-        taskId: task3.id,
-        type: 'HANDOFF',
-        content: 'Design approved. Proceed with development.',
-        status: 'READ',
-      },
-    ],
-  });
-
-  // Create an Approval for the blocked task
-  await prisma.approval.create({
-    data: {
-      taskId: task3.id,
-      actionType: 'CLIENT_ACTION',
-      description: 'Need WhatsApp Business API credentials to continue.',
-      status: 'PENDING',
-    },
-  });
-
-  // Activity Logs
-  await prisma.activityLog.createMany({
-    data: [
-      {
-        taskId: task1.id,
-        agent: 'Antigravity',
-        action: 'Completed planning phase',
-      },
-      {
-        taskId: task2.id,
-        agent: 'OpenDesign',
-        action: 'Completed design phase',
-      },
-      {
-        taskId: task3.id,
-        agent: 'System',
-        action: 'Task blocked waiting for human input',
-      },
-    ],
-  });
-
-  console.log('  ✅ Seeded WhatsApp AI SaaS project (1 Goal, 4 Tasks, Messages, Approval)');
-  console.log('\n🎉 Seed complete!');
+  console.log('  ✅ Entorno limpio configurado con éxito.');
+  console.log('  ✅ 0 tareas pendientes. Workers en modo ONLINE / IDLE listos para recibir trabajo.');
+  console.log('\n🎉 Seed completado.');
 }
 
 main()
